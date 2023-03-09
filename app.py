@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session
 import pymysql
 from flask_cors import CORS
 import re
-
+from datetime import timedelta # NEW CODE: used on line 14 to determine how long we want a session to last
 
 app = Flask(__name__)
 # CORS(app)
@@ -10,6 +10,8 @@ cors = CORS(app, resources={r"/*": {"origins": "*"}})
 
 
 app.secret_key = 'happykey'
+
+app.permanent_session_lifetime = timedelta(minutes = 10) # NEW CODE: when we do "session.permanent=True" the session will last 10 minutes
 
 
 # app.config['MYSQL_HOST'] = '127.0.0.1'
@@ -25,12 +27,11 @@ conn = pymysql.connect(
 		cursorclass=pymysql.cursors.DictCursor
         )
 cur = conn.cursor()
-
 @app.route('/')
 @app.route('/login', methods =['GET', 'POST'])
 def login():
-	if "loggedin" in session:
-		return render_template('index.html', msg = "logged in successfully")
+	if "loggedin" in session: # NEW CODE: keeps user logged in as long as "loggedin" is in the session dict (it only gets popped when someone pressed "logout")
+		return render_template('index.html', msg = "logged in successfully") # NEW CODE: if the user is logged in, go to index.html
 	msg = ''
 	if request.method == 'POST' and 'username' in request.form and 'password' in request.form:
 		username = request.form['username']
@@ -39,6 +40,7 @@ def login():
 		conn.commit()
 		account = cur.fetchone()
 		if account:
+			session.permanent = True # NEW CODE: allows a session to last for however long we wanted (I said 10 minutes on line 14)
 			session['loggedin'] = True
 			session['id'] = account['id']
 			session['username'] = account['username']
