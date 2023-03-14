@@ -1,8 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, abort # NEW CODE:added "abort"
 import pymysql
 from flask_cors import CORS
 import re
-from datetime import timedelta # NEW CODE: used on line 14 to determine how long we want a session to last
+from datetime import timedelta 
 
 app = Flask(__name__)
 # CORS(app)
@@ -11,7 +11,7 @@ cors = CORS(app, resources={r"/*": {"origins": "*"}})
 
 app.secret_key = 'happykey'
 
-app.permanent_session_lifetime = timedelta(minutes = 10) # NEW CODE: when we do "session.permanent=True" the session will last 10 minutes
+app.permanent_session_lifetime = timedelta(minutes = 10)
 
 
 # app.config['MYSQL_HOST'] = '127.0.0.1'
@@ -30,17 +30,25 @@ cur = conn.cursor()
 @app.route('/')
 @app.route('/login', methods =['GET', 'POST'])
 def login():
-	if "loggedin" in session: # NEW CODE: keeps user logged in as long as "loggedin" is in the session dict (it only gets popped when someone pressed "logout")
-		return render_template('index.html', msg = "logged in successfully") # NEW CODE: if the user is logged in, go to index.html
+	if "loggedin" in session: 
+		return render_template('index.html', msg = "logged in successfully") 
 	msg = ''
 	if request.method == 'POST' and 'username' in request.form and 'password' in request.form:
 		username = request.form['username']
+		# NEW CODE /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+		#Properly adds "username" to session, and makes sure that if someone logs out and logs back in, the session variable is updated
+		if "username" not in session: 
+			session['username'] = username
+		else:
+			 session.pop('username', None)
+			 session['username'] = username
+		# NEW CODE /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		password = request.form['password']
 		cur.execute('SELECT * FROM accounts WHERE username = % s AND password = % s', (username, password, ))
 		conn.commit()
 		account = cur.fetchone()
 		if account:
-			session.permanent = True # NEW CODE: allows a session to last for however long we wanted (I said 10 minutes on line 14)
+			session.permanent = True
 			session['loggedin'] = True
 			session['id'] = account['id']
 			session['username'] = account['username']
@@ -89,6 +97,18 @@ def register():
 	elif request.method == 'POST':
 		msg = 'Please fill out the form !'
 	return render_template('register.html', msg = msg)
+
+# NEW CODE: //////////////////////////////////////////////////////////////////////////////////////////////////////////
+# Added "admin" route to side bar. Can only access if session["username"] == "admin", otherwise, abort to error 401.
+@app.route("/admin")
+def admin():
+	if 'loggedin' in session:
+		if "username" in session:
+			if session["username"] == "admin":
+				return render_template("admin.html")
+			abort(401)
+	return redirect(url_for('login'))
+# NEW CODE: //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 @app.route("/index")
